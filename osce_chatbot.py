@@ -1,9 +1,9 @@
 import streamlit as st
-import openai
 import json
+from openai import OpenAI
 
-# Use Streamlit secrets to securely get your API key
-openai.api_key = st.secrets["openai_api_key"]
+# Initialize OpenAI client with your API key from Streamlit secrets
+client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # OSCE Cases dictionary
 cases = {
@@ -43,16 +43,13 @@ def reset_conversation():
             del st.session_state[key]
     st.experimental_rerun()
 
-# Reset button with callback
 st.button("🔁 Reset Conversation", on_click=reset_conversation)
 
-# Case selection dropdown
 case_id = st.selectbox("Select an OSCE Case:", list(cases.keys()))
 case = cases[case_id]
 
 st.subheader(f"Presenting Complaint: {case['presenting_complaint']}")
 
-# Initialize session state for the selected case
 if "messages" not in st.session_state or st.session_state.get("current_case") != case_id:
     st.session_state.messages = [
         {"role": "system", "content": "You are simulating an OSCE case for a pharmacy intern. Respond as the patient in a realistic, emotionally appropriate way. Provide information only when asked. Use this patient data: " + json.dumps(case['patient_info'])}
@@ -61,12 +58,12 @@ if "messages" not in st.session_state or st.session_state.get("current_case") !=
     st.session_state.asked = []
     st.session_state.current_case = case_id
 
-# User input field and send button
 user_input = st.text_input("You (Pharmacy Intern):", "")
 if st.button("Send") and user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
 
-    response = openai.ChatCompletion.create(
+    # New OpenAI API usage here:
+    response = client.chat.completions.create(
         model="gpt-4",
         messages=st.session_state.messages
     )
@@ -74,18 +71,15 @@ if st.button("Send") and user_input:
     reply = response.choices[0].message.content
     st.session_state.messages.append({"role": "assistant", "content": reply})
 
-    # Check if user asked expected questions to track score
     for expected in case['expected_questions']:
         if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
             st.session_state.score += 1
             st.session_state.asked.append(expected)
 
-# Display chat history except system messages
 for msg in st.session_state.messages:
     if msg['role'] != 'system':
         st.markdown(f"**{msg['role'].capitalize()}:** {msg['content']}")
 
-# Show performance feedback
 st.markdown("---")
 st.subheader("🧠 Performance Feedback")
 st.markdown(f"**Expected questions asked:** {len(st.session_state.asked)} / {len(case['expected_questions'])}")
