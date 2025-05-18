@@ -1,11 +1,7 @@
 import streamlit as st
-from openai import OpenAI
 import json
 
-# Initialize OpenAI client with your API key from Streamlit secrets
-client = OpenAI(api_key=st.secrets["openai_api_key"])
-
-# Multiple OSCE Cases
+# Multiple OSCE Cases with symptom_duration added for simulation
 cases = {
     "001": {
         "presenting_complaint": "Cough and fever",
@@ -13,6 +9,7 @@ cases = {
             "age": 34,
             "gender": "Male",
             "symptoms": "Persistent dry cough for 5 days, fever at night, no sputum, no wheezing",
+            "symptom_duration": "5 days",
             "allergies": "None",
             "medications": "Occasional paracetamol"
         },
@@ -26,6 +23,7 @@ cases = {
             "age": 28,
             "gender": "Female",
             "symptoms": "Intermittent throbbing headache over the past 2 weeks, worsens with light, improves with rest",
+            "symptom_duration": "2 weeks",
             "allergies": "Ibuprofen",
             "medications": "Paracetamol 1g PRN"
         },
@@ -35,8 +33,29 @@ cases = {
     }
 }
 
+# Function to simulate patient responses locally
+def mock_response(user_message, case):
+    user_message_lower = user_message.lower()
+    # Check for key expected questions and simulate answers
+    if "how long" in user_message_lower or "duration" in user_message_lower:
+        return f"I have had these symptoms for {case['patient_info'].get('symptom_duration', 'some time')}."
+    elif "chest pain" in user_message_lower:
+        return "No, I haven't had any chest pain."
+    elif "travel history" in user_message_lower:
+        return "No recent travel, I’ve been local."
+    elif "vaccination" in user_message_lower:
+        return "Yes, I am up to date with my vaccinations."
+    elif "pain characteristics" in user_message_lower:
+        return "The headache is throbbing and comes and goes."
+    elif "associated symptoms" in user_message_lower:
+        return "I sometimes feel nauseous and sensitive to light."
+    elif "medication history" in user_message_lower:
+        return "I usually take paracetamol when it gets bad."
+    else:
+        return "Can you please ask more questions to understand my condition better?"
+
 # Streamlit UI
-st.title("Pharmacy OSCE Chatbot")
+st.title("Pharmacy OSCE Chatbot Simulator (Offline)")
 
 # Case selection
 case_id = st.selectbox("Select an OSCE Case:", list(cases.keys()))
@@ -44,16 +63,10 @@ case = cases[case_id]
 
 st.subheader(f"Presenting Complaint: {case['presenting_complaint']}")
 
-# Initialize or reset session state on case change
+# Initialize session state for chat and score
 if "messages" not in st.session_state or st.session_state.get("current_case") != case_id:
     st.session_state.messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are simulating an OSCE case for a pharmacy intern. Respond as the patient in a realistic, emotionally appropriate way. "
-                "Provide information only when asked. Use this patient data: " + json.dumps(case['patient_info'])
-            )
-        }
+        {"role": "system", "content": "You are simulating an OSCE case for a pharmacy intern. Respond as the patient. Provide info only when asked."},
     ]
     st.session_state.score = 0
     st.session_state.asked = []
@@ -65,34 +78,23 @@ user_input = st.text_input("You (Pharmacy Intern):", "")
 if st.button("Send") and user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=st.session_state.messages
-        )
-        reply = response.choices[0].message.content
-        st.session_state.messages.append({"role": "assistant", "content": reply})
+    # Simulate patient reply locally instead of calling OpenAI
+    reply = mock_response(user_input, case)
 
-        # Check for key expected questions
-        for expected in case['expected_questions']:
-            if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
-                st.session_state.score += 1
-                st.session_state.asked.append(expected)
+    st.session_state.messages.append({"role": "assistant", "content": reply})
 
-    except Exception as e:
-        error_message = str(e).lower()
-        if "rate limit" in error_message:
-            st.error("API rate limit exceeded. Please wait a moment and try again.")
-        else:
-            st.error(f"An unexpected error occurred: {e}")
+    # Score checking for expected questions
+    for expected in case['expected_questions']:
+        if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
+            st.session_state.score += 1
+            st.session_state.asked.append(expected)
 
 # Display chat history
 for msg in st.session_state.messages:
     if msg['role'] != 'system':
-        role_display = "Patient" if msg['role'] == 'assistant' else "You"
-        st.markdown(f"**{role_display}:** {msg['content']}")
+        st.markdown(f"**{msg['role'].capitalize()}:** {msg['content']}")
 
-# Display performance evaluation
+# Performance feedback
 st.markdown("---")
 st.subheader("🧠 Performance Feedback")
 st.markdown(f"**Expected questions asked:** {len(st.session_state.asked)} / {len(case['expected_questions'])}")
