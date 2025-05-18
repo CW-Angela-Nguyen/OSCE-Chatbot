@@ -68,4 +68,25 @@ if st.button("Send") and user_input:
         # Check for key expected questions
         for expected in case['expected_questions']:
             if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
-                st.session_state.score +=_
+                st.session_state.score += 1
+                st.session_state.asked.append(expected)
+    except openai.error.RateLimitError:
+        st.error("API rate limit exceeded. Please wait a moment and try again.")
+    except Exception as e:
+        st.error(f"An unexpected error occurred: {e}")
+
+# Display chat history (newest messages on top)
+for msg in reversed(st.session_state.messages):
+    if msg['role'] != 'system':
+        st.markdown(f"**{msg['role'].capitalize()}:** {msg['content']}")
+
+# Display performance evaluation
+st.markdown("---")
+st.subheader("🧠 Performance Feedback")
+st.markdown(f"**Expected questions asked:** {len(st.session_state.asked)} / {len(case['expected_questions'])}")
+st.markdown(f"**Questions asked:** {', '.join(st.session_state.asked) if st.session_state.asked else 'None yet'}")
+
+if len(st.session_state.asked) == len(case['expected_questions']):
+    st.success("Great job! You've asked all the key questions expected for this case.")
+elif len(st.session_state.messages) > 3:
+    st.info("Try to explore more relevant questions to uncover key clinical information.")
