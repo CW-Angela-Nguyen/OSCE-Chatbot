@@ -44,6 +44,14 @@ case = cases[case_id]
 
 st.subheader(f"Presenting Complaint: {case['presenting_complaint']}")
 
+# Reset conversation button
+if st.button("🔁 Reset Conversation"):
+    st.session_state.pop("messages", None)
+    st.session_state.pop("score", None)
+    st.session_state.pop("asked", None)
+    st.session_state.pop("current_case", None)
+    st.experimental_rerun()
+
 # Session state for chat and score
 if "messages" not in st.session_state or st.session_state.get("current_case") != case_id:
     st.session_state.messages = [
@@ -63,7 +71,7 @@ if st.button("Send") and user_input:
         messages=st.session_state.messages
     )
 
-    reply = response['choices'][0]['message']['content']
+    reply = response.choices[0].message.content
     st.session_state.messages.append({"role": "assistant", "content": reply})
 
     # Check for key expected questions
