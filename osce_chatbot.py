@@ -1,7 +1,6 @@
 import streamlit as st
 import openai
 import json
-from openai.error import RateLimitError
 
 # Use Streamlit Secrets for API key security
 openai.api_key = st.secrets["openai_api_key"]
@@ -45,13 +44,10 @@ case = cases[case_id]
 
 st.subheader(f"Presenting Complaint: {case['presenting_complaint']}")
 
-# Initialize or reset session state if new case selected
-if "current_case" not in st.session_state or st.session_state.get("current_case") != case_id:
+# Initialize session state on case change
+if "messages" not in st.session_state or st.session_state.get("current_case") != case_id:
     st.session_state.messages = [
-        {
-            "role": "system",
-            "content": "You are simulating an OSCE case for a pharmacy intern. Respond as the patient in a realistic, emotionally appropriate way. Provide information only when asked. Use this patient data: " + json.dumps(case['patient_info'])
-        }
+        {"role": "system", "content": "You are simulating an OSCE case for a pharmacy intern. Respond as the patient in a realistic, emotionally appropriate way. Provide information only when asked. Use this patient data: " + json.dumps(case['patient_info'])}
     ]
     st.session_state.score = 0
     st.session_state.asked = []
@@ -65,29 +61,31 @@ if st.button("Send") and user_input:
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
+            model="gpt-3.5-turbo",  # or another model you have access to
             messages=st.session_state.messages
         )
         reply = response.choices[0].message.content
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
-        # Check if user asked expected questions (case-insensitive)
+        # Check for key expected questions
         for expected in case['expected_questions']:
             if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
                 st.session_state.score += 1
                 st.session_state.asked.append(expected)
 
-    except RateLimitError:
-        st.error("API rate limit exceeded. Please wait a moment and try again.")
     except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
+        if "rate limit" in str(e).lower():
+            st.error("API rate limit exceeded. Please wait a moment and try again.")
+        else:
+            st.error(f"An unexpected error occurred: {e}")
 
-# Display chat history with newest messages at top
+# Display chat history with newest first
 for msg in reversed(st.session_state.messages):
     if msg['role'] != 'system':
-        st.markdown(f"**{msg['role'].capitalize()}:** {msg['content']}")
+        role = "You" if msg['role'] == "user" else "Patient"
+        st.markdown(f"**{role}:** {msg['content']}")
 
-# Performance feedback
+# Performance evaluation
 st.markdown("---")
 st.subheader("🧠 Performance Feedback")
 st.markdown(f"**Expected questions asked:** {len(st.session_state.asked)} / {len(case['expected_questions'])}")
