@@ -35,8 +35,14 @@ cases = {
     }
 }
 
-# Streamlit UI
 st.title("Pharmacy OSCE Chatbot")
+
+# Reset conversation button — place this BEFORE session state setup
+if st.button("🔁 Reset Conversation"):
+    for key in ["messages", "score", "asked", "current_case"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.experimental_rerun()
 
 # Case selection
 case_id = st.selectbox("Select an OSCE Case:", list(cases.keys()))
@@ -44,15 +50,7 @@ case = cases[case_id]
 
 st.subheader(f"Presenting Complaint: {case['presenting_complaint']}")
 
-# Reset conversation button
-if st.button("🔁 Reset Conversation"):
-    st.session_state.pop("messages", None)
-    st.session_state.pop("score", None)
-    st.session_state.pop("asked", None)
-    st.session_state.pop("current_case", None)
-    st.experimental_rerun()
-
-# Session state for chat and score
+# Initialize session state if new or changed case
 if "messages" not in st.session_state or st.session_state.get("current_case") != case_id:
     st.session_state.messages = [
         {"role": "system", "content": "You are simulating an OSCE case for a pharmacy intern. Respond as the patient in a realistic, emotionally appropriate way. Provide information only when asked. Use this patient data: " + json.dumps(case['patient_info'])}
