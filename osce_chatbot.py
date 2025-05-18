@@ -2,7 +2,7 @@ import streamlit as st
 import json
 import time
 from openai import OpenAI
-    response = client.chat.completions.create(
+response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=st.session_state.messages
     )
