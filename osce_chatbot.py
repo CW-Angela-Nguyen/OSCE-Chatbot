@@ -7,7 +7,7 @@ response = client.chat.completions.create(
         messages=st.session_state.messages
     )
 reply = response.choices[0].message.content
-    st.session_state.messages.append({"role": "assistant", "content": reply})
+st.session_state.messages.append({"role": "assistant", "content": reply})
 
     for expected in case['expected_questions']:
         if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
