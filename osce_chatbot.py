@@ -64,7 +64,7 @@ if st.button("Send") and user_input:
 
     # New OpenAI API usage here:
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-3.5-turbo",
         messages=st.session_state.messages
     )
 
