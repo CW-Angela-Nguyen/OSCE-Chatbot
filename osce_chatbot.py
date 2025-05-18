@@ -1,11 +1,11 @@
 import streamlit as st
-import openai
 import json
+from openai import OpenAI
 
-# Use Streamlit Secrets for API key security
-openai.api_key = st.secrets["openai_api_key"]
+# Initialize OpenAI client with your API key
+client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Multiple OSCE Cases
+# OSCE Cases
 cases = {
     "001": {
         "presenting_complaint": "Cough and fever",
@@ -35,39 +35,41 @@ cases = {
     }
 }
 
-# Streamlit UI
 st.title("Pharmacy OSCE Chatbot")
 
-# Case selection
 case_id = st.selectbox("Select an OSCE Case:", list(cases.keys()))
 case = cases[case_id]
 
 st.subheader(f"Presenting Complaint: {case['presenting_complaint']}")
 
-# Initialize session state on case change
+# Initialize session state if new case or not yet initialized
 if "messages" not in st.session_state or st.session_state.get("current_case") != case_id:
     st.session_state.messages = [
-        {"role": "system", "content": "You are simulating an OSCE case for a pharmacy intern. Respond as the patient in a realistic, emotionally appropriate way. Provide information only when asked. Use this patient data: " + json.dumps(case['patient_info'])}
+        {
+            "role": "system",
+            "content": (
+                "You are simulating an OSCE case for a pharmacy intern. Respond as the patient in a realistic, emotionally appropriate way. "
+                "Provide information only when asked. Use this patient data: " + json.dumps(case['patient_info'])
+            )
+        }
     ]
     st.session_state.score = 0
     st.session_state.asked = []
     st.session_state.current_case = case_id
 
-# User input
 user_input = st.text_input("You (Pharmacy Intern):", "")
 
 if st.button("Send") and user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
 
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # or another model you have access to
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
             messages=st.session_state.messages
         )
         reply = response.choices[0].message.content
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
-        # Check for key expected questions
         for expected in case['expected_questions']:
             if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
                 st.session_state.score += 1
@@ -79,13 +81,12 @@ if st.button("Send") and user_input:
         else:
             st.error(f"An unexpected error occurred: {e}")
 
-# Display chat history with newest first
+# Display chat messages newest first
 for msg in reversed(st.session_state.messages):
     if msg['role'] != 'system':
         role = "You" if msg['role'] == "user" else "Patient"
         st.markdown(f"**{role}:** {msg['content']}")
 
-# Performance evaluation
 st.markdown("---")
 st.subheader("🧠 Performance Feedback")
 st.markdown(f"**Expected questions asked:** {len(st.session_state.asked)} / {len(case['expected_questions'])}")
