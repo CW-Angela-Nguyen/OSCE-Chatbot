@@ -2,7 +2,25 @@ import streamlit as st
 import json
 import time
 from openai import OpenAI
-from openai.error import RateLimitError
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=st.session_state.messages
+    )
+    reply = response.choices[0].message.content
+    st.session_state.messages.append({"role": "assistant", "content": reply})
+
+    for expected in case['expected_questions']:
+        if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
+            st.session_state.score += 1
+            st.session_state.asked.append(expected)
+
+except Exception as e:
+    # Check if it's a rate limit error
+    if "RateLimitError" in str(e) or "rate limit" in str(e).lower():
+        st.error("API rate limit exceeded. Please wait a moment and try again.")
+    else:
+        st.error(f"An unexpected error occurred: {e}")
+
 
 # Initialize OpenAI client with API key from secrets
 client = OpenAI(api_key=st.secrets["openai_api_key"])
