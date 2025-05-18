@@ -1,11 +1,7 @@
 import streamlit as st
 import json
-from openai import OpenAI
 
-# Initialize OpenAI client with your API key
-client = OpenAI(api_key=st.secrets["openai_api_key"])
-
-# OSCE Cases
+# Multiple OSCE Cases
 cases = {
     "001": {
         "presenting_complaint": "Cough and fever",
@@ -35,58 +31,59 @@ cases = {
     }
 }
 
-st.title("Pharmacy OSCE Chatbot")
+# Offline mock response function
+def mock_chat_response(user_message, patient_info):
+    user_message_lower = user_message.lower()
+    # Very simple simulation based on keywords
+    if "how long" in user_message_lower or "duration" in user_message_lower:
+        return f"I have had these symptoms for 5 days."
+    elif "chest pain" in user_message_lower:
+        return "No chest pain."
+    elif "travel" in user_message_lower:
+        return "No recent travel."
+    elif "vaccination" in user_message_lower:
+        return "Yes, I am up to date with vaccinations."
+    else:
+        return "Could you please ask something specific about my symptoms?"
 
+# Streamlit UI
+st.title("Pharmacy OSCE Chatbot (Offline Mock)")
+
+# Case selection
 case_id = st.selectbox("Select an OSCE Case:", list(cases.keys()))
 case = cases[case_id]
 
 st.subheader(f"Presenting Complaint: {case['presenting_complaint']}")
 
-# Initialize session state if new case or not yet initialized
+# Session state for chat and score
 if "messages" not in st.session_state or st.session_state.get("current_case") != case_id:
     st.session_state.messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are simulating an OSCE case for a pharmacy intern. Respond as the patient in a realistic, emotionally appropriate way. "
-                "Provide information only when asked. Use this patient data: " + json.dumps(case['patient_info'])
-            )
-        }
+        {"role": "system", "content": "You are simulating an OSCE case for a pharmacy intern. Respond as the patient realistically and only when asked. Patient data: " + json.dumps(case['patient_info'])}
     ]
     st.session_state.score = 0
     st.session_state.asked = []
     st.session_state.current_case = case_id
 
+# User input
 user_input = st.text_input("You (Pharmacy Intern):", "")
-
 if st.button("Send") and user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.session_state.messages.insert(0, {"role": "user", "content": user_input})  # insert at top for newest first
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=st.session_state.messages
-        )
-        reply = response.choices[0].message.content
-        st.session_state.messages.append({"role": "assistant", "content": reply})
+    reply = mock_chat_response(user_input, case['patient_info'])
+    st.session_state.messages.insert(0, {"role": "assistant", "content": reply})
 
-        for expected in case['expected_questions']:
-            if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
-                st.session_state.score += 1
-                st.session_state.asked.append(expected)
+    # Check for key expected questions
+    for expected in case['expected_questions']:
+        if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
+            st.session_state.score += 1
+            st.session_state.asked.append(expected)
 
-    except Exception as e:
-        if "rate limit" in str(e).lower():
-            st.error("API rate limit exceeded. Please wait a moment and try again.")
-        else:
-            st.error(f"An unexpected error occurred: {e}")
-
-# Display chat messages newest first
-for msg in reversed(st.session_state.messages):
+# Display chat history newest first
+for msg in st.session_state.messages:
     if msg['role'] != 'system':
-        role = "You" if msg['role'] == "user" else "Patient"
-        st.markdown(f"**{role}:** {msg['content']}")
+        st.markdown(f"**{msg['role'].capitalize()}:** {msg['content']}")
 
+# Display performance evaluation
 st.markdown("---")
 st.subheader("🧠 Performance Feedback")
 st.markdown(f"**Expected questions asked:** {len(st.session_state.asked)} / {len(case['expected_questions'])}")
