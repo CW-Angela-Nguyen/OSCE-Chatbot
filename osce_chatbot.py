@@ -9,7 +9,7 @@ response = client.chat.completions.create(
 reply = response.choices[0].message.content
 st.session_state.messages.append({"role": "assistant", "content": reply})
 
-    for expected in case['expected_questions']:
+for expected in case['expected_questions']:
         if expected.lower() in user_input.lower() and expected not in st.session_state.asked:
             st.session_state.score += 1
             st.session_state.asked.append(expected)
