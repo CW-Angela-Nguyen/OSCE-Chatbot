@@ -1,9 +1,9 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 import json
 
-# Use Streamlit Secrets for API key security
-openai.api_key = st.secrets["openai_api_key"]
+# Initialize OpenAI client with your API key from Streamlit secrets
+client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # Multiple OSCE Cases
 cases = {
@@ -44,13 +44,15 @@ case = cases[case_id]
 
 st.subheader(f"Presenting Complaint: {case['presenting_complaint']}")
 
-# Initialize session state for chat and score if new case or first run
+# Initialize or reset session state on case change
 if "messages" not in st.session_state or st.session_state.get("current_case") != case_id:
     st.session_state.messages = [
         {
             "role": "system",
-            "content": "You are simulating an OSCE case for a pharmacy intern. Respond as the patient in a realistic, emotionally appropriate way. Provide information only when asked. Use this patient data: "
-                       + json.dumps(case['patient_info'])
+            "content": (
+                "You are simulating an OSCE case for a pharmacy intern. Respond as the patient in a realistic, emotionally appropriate way. "
+                "Provide information only when asked. Use this patient data: " + json.dumps(case['patient_info'])
+            )
         }
     ]
     st.session_state.score = 0
@@ -64,7 +66,7 @@ if st.button("Send") and user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=st.session_state.messages
         )
@@ -78,7 +80,8 @@ if st.button("Send") and user_input:
                 st.session_state.asked.append(expected)
 
     except Exception as e:
-        if "rate limit" in str(e).lower():
+        error_message = str(e).lower()
+        if "rate limit" in error_message:
             st.error("API rate limit exceeded. Please wait a moment and try again.")
         else:
             st.error(f"An unexpected error occurred: {e}")
@@ -86,7 +89,8 @@ if st.button("Send") and user_input:
 # Display chat history
 for msg in st.session_state.messages:
     if msg['role'] != 'system':
-        st.markdown(f"**{msg['role'].capitalize()}:** {msg['content']}")
+        role_display = "Patient" if msg['role'] == 'assistant' else "You"
+        st.markdown(f"**{role_display}:** {msg['content']}")
 
 # Display performance evaluation
 st.markdown("---")
